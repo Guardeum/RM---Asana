@@ -1,0 +1,27 @@
+name: Rent Manager -> Asana sync
+on:
+  schedule:
+    # Private repo: every 30 min fits GitHub's free 2,000 min/month (each run bills as 1 min).
+    # Public repo (free unlimited): change to "*/5 * * * *" for every 5 minutes.
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+concurrency: rm-asana-sync   # never run two syncs at once (RM caps logins per user)
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Sync
+        run: python rm_asana_sync.py
+        env:
+          RM_CORP_ID: guardeum
+          RM_LOCATION_ID: "1"
+          RM_MY_USER_ID: "1"
+          RM_SINCE: "2026-10-20"
+          ASANA_PROJECT_GID: "1219711108302546"
+          RM_USERNAME: ${{ secrets.RM_USERNAME }}
+          RM_PASSWORD: ${{ secrets.RM_PASSWORD }}
+          ASANA_PAT: ${{ secrets.ASANA_PAT }}
