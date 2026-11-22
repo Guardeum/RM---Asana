@@ -78,6 +78,13 @@ class RM:
                   "Accept": "application/json"}
         import atexit; atexit.register(self.logout)  # RM caps concurrent logins per user
 
+    def close_task(self, task_id, uid):
+        """Mark a follow-up closed in RM. Needs the API user to have edit rights on Tasks."""
+        now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        body = [{"TaskID": int(task_id), "IsClosed": True, "CloseDate": now,
+                 "CloseUserID": int(uid)}]
+        http("POST", self.base + "/Tasks", self.h, body)
+
     def logout(self):
         try: http("POST", self.base + "/Authentication/DeAuthorize", self.h)
         except Exception: pass
@@ -209,8 +216,8 @@ def sync(dry):
         m = MARKER_RE.search(t.get("notes") or "")
         if m: existing[m.group(1)] = t
 
-    created = updated = completed = 0
-    for fid, fu in open_fus.items():
+    created = updated = completed = closed_rm = 0
+    for fid, fu in list(open_fus.items()):
         want = task_fields(fu)
         t = existing.get(fid)
         if not t:
@@ -218,9 +225,19 @@ def sync(dry):
             if not dry: asana.create(want)
             created += 1
             continue
-        diff = {k: v for k, v in want.items() if (t.get(k) or None) != (v or None)}
         if t.get("completed"):
-            diff["completed"] = False  # reopened in RM
+            # Done in Asana but still open in RM -> close the follow-up in RM.
+            print(f"CLOSE IN RM  {t['name']}  (completed in Asana)")
+            if not dry:
+                try:
+                    rm.close_task(fid, uid)
+                except RuntimeError as e:
+                    print(f"  ! could not close RM follow-up {fid}: {e}")
+                    continue
+            closed_rm += 1
+            del open_fus[fid]
+            continue
+        diff = {k: v for k, v in want.items() if (t.get(k) or None) != (v or None)}
         if diff:
             print(f"UPDATE  {t['name']}  {sorted(diff)}")
             if not dry: asana.update(t["gid"], diff)
@@ -235,7 +252,7 @@ def sync(dry):
             completed += 1
 
     print(f"\n{'[dry run] ' if dry else ''}{len(open_fus)} open follow-ups | "
-          f"created {created}, updated {updated}, completed {completed}")
+          f"created {created}, updated {updated}, completed {completed}, closed in RM {closed_rm}")
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
