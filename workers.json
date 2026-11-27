@@ -1,0 +1,15 @@
+{
+  "since": "2026-11-27",
+  "workers": [
+    {
+      "name": "Martin",
+      "rm_username": "mj",
+      "asana_email": "martin@guardeumpm.com",
+      "asana_project_gid": "1219711108302546",
+      "since": "2026-10-20"
+    },
+    { "name": "Mayer",  "rm_username": "MB", "asana_email": "mayer@guardeumpm.com" },
+    { "name": "Hersh",  "rm_username": "HS", "asana_email": "hersh@guardeumpm.com" },
+    { "name": "Malky",  "rm_username": "MK", "asana_email": "malky@guardeumpm.com" }
+  ]
+}
