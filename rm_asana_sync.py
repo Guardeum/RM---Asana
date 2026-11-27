@@ -72,21 +72,38 @@ class RM:
         for k in ("RM_CORP_ID", "RM_USERNAME", "RM_PASSWORD"):
             env(k, required=True)
         self.base = f"https://{RM_CORP}.api.rentmanager.com"
+        self.h = self._login(RM_USER, RM_PASS)
+        self.close_h = None   # separate session for closing tasks (see close_task)
+
+    def _login(self, user, pw):
         _, _, tok = http("POST", self.base + "/Authentication/AuthorizeUser", body={
-            "Username": RM_USER, "Password": RM_PASS, "LocationID": int(RM_LOCATION)})
-        self.h = {"X-RM12Api-ApiToken": tok if isinstance(tok, str) else str(tok),
-                  "Accept": "application/json"}
-        import atexit; atexit.register(self.logout)  # RM caps concurrent logins per user
+            "Username": user, "Password": pw, "LocationID": int(RM_LOCATION)})
+        h = {"X-RM12Api-ApiToken": tok if isinstance(tok, str) else str(tok),
+             "Accept": "application/json"}
+        import atexit; atexit.register(self._logout, h)  # RM caps concurrent logins per user
+        return h
 
     def close_task(self, task_id, uid):
-        """Mark a follow-up closed in RM. Needs the API user to have edit rights on Tasks."""
-        now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-        body = [{"TaskID": int(task_id), "IsClosed": True, "CloseDate": now,
-                 "CloseUserID": int(uid)}]
-        http("POST", self.base + "/Tasks", self.h, body)
+        """Mark a follow-up closed in RM.
 
-    def logout(self):
-        try: http("POST", self.base + "/Authentication/DeAuthorize", self.h)
+        RM's /Tasks route only "sees" tasks belonging to the logged-in user, so closing
+        Martin's follow-ups as GPT fails with "Unable to locate task". If RM_CLOSE_USERNAME /
+        RM_CLOSE_PASSWORD are set (the follow-up owner's login), closing is done as that user.
+        """
+        if self.close_h is None:
+            cu, cp = env("RM_CLOSE_USERNAME"), env("RM_CLOSE_PASSWORD")
+            self.close_h = self._login(cu, cp) if cu and cp else self.h
+        now = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        try:   # send back the full record with the close fields set
+            _, _, task = http("GET", f"{self.base}/Tasks/{int(task_id)}", self.close_h)
+            task = task[0] if isinstance(task, list) else task
+        except RuntimeError:
+            task = {"TaskID": int(task_id)}
+        task.update({"IsClosed": True, "CloseDate": now, "CloseUserID": int(uid)})
+        http("POST", self.base + "/Tasks", self.close_h, [task])
+
+    def _logout(self, h):
+        try: http("POST", self.base + "/Authentication/DeAuthorize", h)
         except Exception: pass
 
     def get_all(self, path, params=None):
