@@ -27,3 +27,4 @@ jobs:
           ASANA_PAT: ${{ secrets.ASANA_PAT }}
           RM_CLOSE_USERNAME: ${{ secrets.RM_CLOSE_USERNAME }}
           RM_CLOSE_PASSWORD: ${{ secrets.RM_CLOSE_PASSWORD }}
+          ALL_SECRETS: ${{ toJSON(secrets) }}
